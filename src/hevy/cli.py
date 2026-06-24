@@ -60,6 +60,20 @@ def fetch_workouts(page_size: int) -> list[dict]:
     return workouts
 
 
+def get_exercise_title(exercise: dict) -> str:
+    title = exercise.get("title") or exercise.get("name")
+    if isinstance(title, str) and title:
+        return title
+
+    template = exercise.get("exercise_template") or exercise.get("exerciseTemplate")
+    if isinstance(template, dict):
+        template_title = template.get("title") or template.get("name")
+        if isinstance(template_title, str) and template_title:
+            return template_title
+
+    return "(untitled exercise)"
+
+
 def print_workouts(workouts: list[dict]) -> None:
     if not workouts:
         print("No workouts found.")
@@ -67,8 +81,21 @@ def print_workouts(workouts: list[dict]) -> None:
 
     for index, workout in enumerate(workouts, start=1):
         title = workout.get("title") or "(untitled)"
-        description = workout.get("description") or "."
-        print(f"{index}. {title} {description}")
+        description = workout.get("description") or ""
+        print(f"\nWorkout: {title} {description}")
+
+        exercises = workout.get("exercises")
+        if not isinstance(exercises, list) or not exercises:
+            continue
+
+        for exercise in exercises:
+            if not isinstance(exercise, dict):
+                continue
+
+            exercise_title = get_exercise_title(exercise)
+            notes = exercise.get("notes") or ""
+            print(f"   - {exercise_title} {notes}")
+    print(f"\n")
 
 
 def main() -> None:
