@@ -2,6 +2,10 @@
 
 My Heavy CLI
 
+Of interest
+
+* [hevycli](https://github.com/obay/hevycli)
+
 ## Setup
 
 ```sh
