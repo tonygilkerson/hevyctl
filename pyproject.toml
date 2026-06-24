@@ -1,7 +1,13 @@
 [project]
 name = "hevyctl"
 version = "0.1.0"
-description = "Add your description here"
+description = "CLI to interact with the Hevy API"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = []
+
+[project.scripts]
+hevyctl = "hevy.cli:main"
+
+[tool.uv]
+package = true

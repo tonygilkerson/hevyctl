@@ -1,3 +1,10 @@
+Metadata-Version: 2.4
+Name: hevyctl
+Version: 0.1.0
+Summary: CLI to interact with the Hevy API
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+
 # Heavy CLI
 
 My Heavy CLI
@@ -43,11 +50,4 @@ python3 -m pip install ~/github/tonygilkerson/hevyctl/dist/hevyctl-0.1.0-py3-non
 
 # Verify
 hevyctl --version
-```
-
-## Usage Examples
-
-```sh
-# Fetch workouts
-uv run hevyctl workouts --pageSize 5
 ```
