@@ -6,6 +6,7 @@ from urllib import error, parse, request
 
 
 API_URL = "https://api.hevyapp.com/v1/workouts"
+ROUTINES_API_URL = "https://api.hevyapp.com/v1/routines"
 
 
 def parse_page_size(value: str) -> int:
@@ -23,8 +24,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command")
 
-    workouts_parser = subparsers.add_parser("workouts", help="List workouts")
-    workouts_parser.add_argument("--pageSize", type=parse_page_size, default=7, help="Number of workouts to fetch")
+    workout_parser = subparsers.add_parser("workout", help="Workout commands")
+    workout_subparsers = workout_parser.add_subparsers(dest="workout_command")
+
+    workout_ls_parser = workout_subparsers.add_parser("ls", help="List workouts")
+    workout_ls_parser.add_argument("--pageSize", type=parse_page_size, default=7, help="Number of workouts to fetch")
+
+    routine_parser = subparsers.add_parser("routine", help="Routine commands")
+    routine_subparsers = routine_parser.add_subparsers(dest="routine_command")
+
+    routine_ls_parser = routine_subparsers.add_parser("ls", help="List routines")
+    routine_ls_parser.add_argument("--pageSize", type=parse_page_size, default=7, help="Number of routines to fetch")
 
     return parser
 
@@ -60,18 +70,35 @@ def fetch_workouts(page_size: int) -> list[dict]:
     return workouts
 
 
-def get_exercise_title(exercise: dict) -> str:
-    title = exercise.get("title") or exercise.get("name")
-    if isinstance(title, str) and title:
-        return title
+def fetch_routines(page_size: int) -> list[dict]:
+    api_key = os.getenv("API_KEY")
+    if not api_key:
+        raise RuntimeError("API_KEY environment variable is not set")
 
-    template = exercise.get("exercise_template") or exercise.get("exerciseTemplate")
-    if isinstance(template, dict):
-        template_title = template.get("title") or template.get("name")
-        if isinstance(template_title, str) and template_title:
-            return template_title
+    query = parse.urlencode({"page": 1, "pageSize": page_size})
+    req = request.Request(
+        f"{ROUTINES_API_URL}?{query}",
+        headers={
+            "accept": "application/json",
+            "api-key": api_key,
+        },
+        method="GET",
+    )
 
-    return "(untitled exercise)"
+    try:
+        with request.urlopen(req) as response:
+            payload = json.load(response)
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Hevy API request failed: {exc.code} {exc.reason}: {detail}") from exc
+    except error.URLError as exc:
+        raise RuntimeError(f"Unable to reach Hevy API: {exc.reason}") from exc
+
+    routines = payload.get("routines")
+    if not isinstance(routines, list):
+        raise RuntimeError("Hevy API response did not contain a routines list")
+
+    return routines
 
 
 def print_workouts(workouts: list[dict]) -> None:
@@ -79,10 +106,12 @@ def print_workouts(workouts: list[dict]) -> None:
         print("No workouts found.")
         return
 
+
+    print(f"\nWorkouts:")
     for index, workout in enumerate(workouts, start=1):
         title = workout.get("title") or "(untitled)"
         description = workout.get("description") or ""
-        print(f"\nWorkout: {title} {description}")
+        print(f"\n{title} {description}")
 
         exercises = workout.get("exercises")
         if not isinstance(exercises, list) or not exercises:
@@ -92,9 +121,34 @@ def print_workouts(workouts: list[dict]) -> None:
             if not isinstance(exercise, dict):
                 continue
 
-            exercise_title = get_exercise_title(exercise)
-            notes = exercise.get("notes") or ""
-            print(f"   - {exercise_title} {notes}")
+            exercise_title = exercise.get("title") or "(untitled exercise)"
+            # notes = exercise.get("notes") or ""
+            print(f"    - {exercise_title}")
+    print(f"\n")
+
+
+def print_routines(routines: list[dict]) -> None:
+    if not routines:
+        print("No routines found.")
+        return
+
+    print(f"\nRoutines:")
+    for index, routine in enumerate(routines, start=1):
+        title = routine.get("title") or "(untitled)"
+        description = routine.get("description") or ""
+        print(f"\n{title} {description}")
+
+        exercises = routine.get("exercises")
+        if not isinstance(exercises, list) or not exercises:
+            continue
+
+        for exercise in exercises:
+            if not isinstance(exercise, dict):
+                continue
+
+            exercise_title = exercise.get("title") or "(untitled exercise)"
+            # notes = exercise.get("notes") or ""
+            print(f"    - {exercise_title}")
     print(f"\n")
 
 
@@ -102,7 +156,7 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    if args.command == "workouts":
+    if args.command == "workout" and args.workout_command == "ls":
         try:
             workouts = fetch_workouts(args.pageSize)
         except RuntimeError as exc:
@@ -110,6 +164,24 @@ def main() -> None:
             raise SystemExit(1) from exc
 
         print_workouts(workouts)
+        return
+
+    if args.command == "workout":
+        parser.parse_args(["workout", "--help"])
+        return
+
+    if args.command == "routine" and args.routine_command == "ls":
+        try:
+            routines = fetch_routines(args.pageSize)
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            raise SystemExit(1) from exc
+
+        print_routines(routines)
+        return
+
+    if args.command == "routine":
+        parser.parse_args(["routine", "--help"])
         return
 
     parser.print_help()

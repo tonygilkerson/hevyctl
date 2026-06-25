@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "hevyctl workout ls",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "hevy.cli",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.envrc.private",
+      "env": {
+        "PYTHONPATH": "src"
+      },
+      "args": ["workout", "ls", "--pageSize", "5"],
+      "console": "integratedTerminal"
+    }
+  ]
+}
