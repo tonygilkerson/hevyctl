@@ -53,8 +53,14 @@ hevyctl --version
 
 ```sh
 # Fetch workouts
-uv run hevyctl workout ls --pageSize 5
+uv run hevyctl workout ls --page-size 5
+
+# Fetch workouts and compare against routines by matching title
+uv run hevyctl workout ls --check-routine --page-size 5
+
+# Fetch workouts without exercises
+uv run hevyctl workout ls --no-exercises
 
 # Fetch routines
-uv run hevyctl routine ls --pageSize 5
+uv run hevyctl routine ls --page-size 5
 ```

@@ -28,13 +28,23 @@ def build_parser() -> argparse.ArgumentParser:
     workout_subparsers = workout_parser.add_subparsers(dest="workout_command")
 
     workout_ls_parser = workout_subparsers.add_parser("ls", help="List workouts")
-    workout_ls_parser.add_argument("--pageSize", type=parse_page_size, default=7, help="Number of workouts to fetch")
+    workout_ls_parser.add_argument("--page-size", dest="pageSize", type=parse_page_size, default=7, help="Number of workouts to fetch")
+    workout_ls_parser.add_argument(
+        "--check-routine",
+        action="store_true",
+        help="Compare workout exercises to a routine with the same title",
+    )
+    workout_ls_parser.add_argument(
+        "--no-exercises",
+        action="store_true",
+        help="List workouts without printing exercises",
+    )
 
     routine_parser = subparsers.add_parser("routine", help="Routine commands")
     routine_subparsers = routine_parser.add_subparsers(dest="routine_command")
 
     routine_ls_parser = routine_subparsers.add_parser("ls", help="List routines")
-    routine_ls_parser.add_argument("--pageSize", type=parse_page_size, default=7, help="Number of routines to fetch")
+    routine_ls_parser.add_argument("--page-size", dest="pageSize", type=parse_page_size, default=10, help="Number of routines to fetch")
 
     return parser
 
@@ -75,56 +85,129 @@ def fetch_routines(page_size: int) -> list[dict]:
     if not api_key:
         raise RuntimeError("API_KEY environment variable is not set")
 
-    query = parse.urlencode({"page": 1, "pageSize": page_size})
-    req = request.Request(
-        f"{ROUTINES_API_URL}?{query}",
-        headers={
-            "accept": "application/json",
-            "api-key": api_key,
-        },
-        method="GET",
-    )
+    all_routines: list[dict] = []
+    page = 1
+    page_count: int | None = None
 
-    try:
-        with request.urlopen(req) as response:
-            payload = json.load(response)
-    except error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Hevy API request failed: {exc.code} {exc.reason}: {detail}") from exc
-    except error.URLError as exc:
-        raise RuntimeError(f"Unable to reach Hevy API: {exc.reason}") from exc
+    while True:
+        query = parse.urlencode({"page": page, "pageSize": page_size})
+        req = request.Request(
+            f"{ROUTINES_API_URL}?{query}",
+            headers={
+                "accept": "application/json",
+                "api-key": api_key,
+            },
+            method="GET",
+        )
 
-    routines = payload.get("routines")
-    if not isinstance(routines, list):
-        raise RuntimeError("Hevy API response did not contain a routines list")
+        try:
+            with request.urlopen(req) as response:
+                payload = json.load(response)
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Hevy API request failed: {exc.code} {exc.reason}: {detail}") from exc
+        except error.URLError as exc:
+            raise RuntimeError(f"Unable to reach Hevy API: {exc.reason}") from exc
 
-    return routines
+        routines = payload.get("routines")
+        if not isinstance(routines, list):
+            raise RuntimeError("Hevy API response did not contain a routines list")
+
+        response_page_count = payload.get("page_count")
+        if isinstance(response_page_count, int) and response_page_count > 0:
+            page_count = response_page_count
+
+        if not routines:
+            break
+
+        all_routines.extend(routines)
+
+        # When fewer than page_size are returned, we reached the last page.
+        if len(routines) < page_size:
+            break
+
+        if page_count is not None and page >= page_count:
+            break
+
+        page += 1
+
+    return all_routines
 
 
-def print_workouts(workouts: list[dict]) -> None:
+def build_routine_lookup(routines: list[dict]) -> dict[str, dict]:
+    lookup: dict[str, dict] = {}
+    for routine in routines:
+        if not isinstance(routine, dict):
+            continue
+
+        title = routine.get("title")
+        if isinstance(title, str) and title:
+            lookup[title] = routine
+
+    return lookup
+
+
+def print_workouts(
+    workouts: list[dict],
+    check_routine: bool = False,
+    routines: list[dict] | None = None,
+    include_exercises: bool = True,
+) -> None:
     if not workouts:
         print("No workouts found.")
         return
 
+    routine_lookup = build_routine_lookup(routines or []) if check_routine else {}
 
-    print(f"\nWorkouts:")
+    print(f"\nWorkouts:\n")
     for index, workout in enumerate(workouts, start=1):
         title = workout.get("title") or "(untitled)"
         description = workout.get("description") or ""
-        print(f"\n{title} {description}")
+        print(f"{title} {description}".rstrip())
+
+        if not include_exercises:
+            continue
 
         exercises = workout.get("exercises")
         if not isinstance(exercises, list) or not exercises:
             continue
 
+        routine_exercise_titles: set[str] = set()
+        if check_routine:
+            routine = routine_lookup.get(title)
+            if isinstance(routine, dict):
+                routine_exercises = routine.get("exercises")
+                if isinstance(routine_exercises, list):
+                    for routine_exercise in routine_exercises:
+                        if not isinstance(routine_exercise, dict):
+                            continue
+                        routine_exercise_title = routine_exercise.get("title")
+                        if isinstance(routine_exercise_title, str) and routine_exercise_title:
+                            routine_exercise_titles.add(routine_exercise_title)
+
+        workout_exercise_titles: set[str] = set()
         for exercise in exercises:
             if not isinstance(exercise, dict):
                 continue
 
             exercise_title = exercise.get("title") or "(untitled exercise)"
-            # notes = exercise.get("notes") or ""
-            print(f"    - {exercise_title}")
-    print(f"\n")
+            if isinstance(exercise_title, str):
+                workout_exercise_titles.add(exercise_title)
+
+            if not check_routine or not routine_exercise_titles:
+                print(f"    - {exercise_title}")
+                continue
+
+            if exercise_title in routine_exercise_titles:
+                print(f"  ✅ - {exercise_title}")
+            else:
+                print(f"  ➕ - {exercise_title}")
+
+        if check_routine and routine_exercise_titles:
+            for routine_exercise_title in sorted(routine_exercise_titles):
+                if routine_exercise_title not in workout_exercise_titles:
+                    print(f"  ❌ - {routine_exercise_title}")
+        print(f"\n")
 
 
 def print_routines(routines: list[dict]) -> None:
@@ -132,11 +215,11 @@ def print_routines(routines: list[dict]) -> None:
         print("No routines found.")
         return
 
-    print(f"\nRoutines:")
+    print(f"\nRoutines:\n")
     for index, routine in enumerate(routines, start=1):
         title = routine.get("title") or "(untitled)"
         description = routine.get("description") or ""
-        print(f"\n{title} {description}")
+        print(f"{title} {description}")
 
         exercises = routine.get("exercises")
         if not isinstance(exercises, list) or not exercises:
@@ -149,7 +232,7 @@ def print_routines(routines: list[dict]) -> None:
             exercise_title = exercise.get("title") or "(untitled exercise)"
             # notes = exercise.get("notes") or ""
             print(f"    - {exercise_title}")
-    print(f"\n")
+        print(f"\n")
 
 
 def main() -> None:
@@ -163,7 +246,20 @@ def main() -> None:
             print(str(exc), file=sys.stderr)
             raise SystemExit(1) from exc
 
-        print_workouts(workouts)
+        routines: list[dict] | None = None
+        if args.check_routine and not args.no_exercises:
+            try:
+                routines = fetch_routines(args.pageSize)
+            except RuntimeError as exc:
+                print(str(exc), file=sys.stderr)
+                raise SystemExit(1) from exc
+
+        print_workouts(
+            workouts,
+            check_routine=args.check_routine,
+            routines=routines,
+            include_exercises=not args.no_exercises,
+        )
         return
 
     if args.command == "workout":
