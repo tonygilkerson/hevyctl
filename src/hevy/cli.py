@@ -28,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     workout_subparsers = workout_parser.add_subparsers(dest="workout_command")
 
     workout_ls_parser = workout_subparsers.add_parser("ls", help="List workouts")
-    workout_ls_parser.add_argument("--page-size", dest="pageSize", type=parse_page_size, default=7, help="Number of workouts to fetch")
+    workout_ls_parser.add_argument("--page-size", dest="page_size", type=parse_page_size, default=7, help="Number of workouts to fetch")
     workout_ls_parser.add_argument(
         "--check-routine",
         action="store_true",
@@ -39,12 +39,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="List workouts without printing exercises",
     )
+    workout_ls_parser.add_argument("--with-notes", dest="with_notes", action="store_true", help="Include exercise notes")
 
     routine_parser = subparsers.add_parser("routine", help="Routine commands")
     routine_subparsers = routine_parser.add_subparsers(dest="routine_command")
 
     routine_ls_parser = routine_subparsers.add_parser("ls", help="List routines")
-    routine_ls_parser.add_argument("--page-size", dest="pageSize", type=parse_page_size, default=10, help="Number of routines to fetch")
+    routine_ls_parser.add_argument("--page-size", dest="page_size", type=parse_page_size, default=10, help="Number of routines to fetch")
+    routine_ls_parser.add_argument("--with-notes", dest="with_notes", action="store_true", help="Include notes")
 
     return parser
 
@@ -152,6 +154,7 @@ def print_workouts(
     check_routine: bool = False,
     routines: list[dict] | None = None,
     include_exercises: bool = True,
+    include_notes: bool = False,
 ) -> None:
     if not workouts:
         print("No workouts found.")
@@ -194,14 +197,29 @@ def print_workouts(
             if isinstance(exercise_title, str):
                 workout_exercise_titles.add(exercise_title)
 
+            # Add "S " prefix if exercise is part of a superset
+            superset_id = exercise.get("superset_id")
+            title_with_superset = f"| {exercise_title}" if superset_id is not None else exercise_title
+
             if not check_routine or not routine_exercise_titles:
-                print(f"    - {exercise_title}")
+                print(f"\n    - {title_with_superset}")
+                if include_notes:
+                    notes = exercise.get("notes")
+                    if isinstance(notes, str) and notes.strip():
+                        for note_line in notes.strip().splitlines():
+                            print(f"      ( {note_line}")
                 continue
 
             if exercise_title in routine_exercise_titles:
-                print(f"  ✅ - {exercise_title}")
+                print(f"\n  ✅ - {title_with_superset}")
             else:
-                print(f"  ➕ - {exercise_title}")
+                print(f"\n  ➕ - {title_with_superset}")
+
+            if include_notes:
+                notes = exercise.get("notes")
+                if isinstance(notes, str) and notes.strip():
+                    for note_line in notes.strip().splitlines():
+                        print(f"      ( {note_line}")
 
         if check_routine and routine_exercise_titles:
             for routine_exercise_title in sorted(routine_exercise_titles):
@@ -210,7 +228,7 @@ def print_workouts(
         print(f"\n")
 
 
-def print_routines(routines: list[dict]) -> None:
+def print_routines(routines: list[dict], include_notes: bool = False) -> None:
     if not routines:
         print("No routines found.")
         return
@@ -230,8 +248,13 @@ def print_routines(routines: list[dict]) -> None:
                 continue
 
             exercise_title = exercise.get("title") or "(untitled exercise)"
-            # notes = exercise.get("notes") or ""
-            print(f"    - {exercise_title}")
+            print(f"\n    - {exercise_title}")
+
+            if include_notes:
+                notes = exercise.get("notes")
+                if isinstance(notes, str) and notes.strip():
+                    for note_line in notes.strip().splitlines():
+                        print(f"      ( {note_line}")
         print(f"\n")
 
 
@@ -241,7 +264,7 @@ def main() -> None:
 
     if args.command == "workout" and args.workout_command == "ls":
         try:
-            workouts = fetch_workouts(args.pageSize)
+            workouts = fetch_workouts(args.page_size)
         except RuntimeError as exc:
             print(str(exc), file=sys.stderr)
             raise SystemExit(1) from exc
@@ -249,7 +272,7 @@ def main() -> None:
         routines: list[dict] | None = None
         if args.check_routine and not args.no_exercises:
             try:
-                routines = fetch_routines(args.pageSize)
+                routines = fetch_routines(args.page_size)
             except RuntimeError as exc:
                 print(str(exc), file=sys.stderr)
                 raise SystemExit(1) from exc
@@ -259,6 +282,7 @@ def main() -> None:
             check_routine=args.check_routine,
             routines=routines,
             include_exercises=not args.no_exercises,
+            include_notes=args.with_notes,
         )
         return
 
@@ -268,12 +292,12 @@ def main() -> None:
 
     if args.command == "routine" and args.routine_command == "ls":
         try:
-            routines = fetch_routines(args.pageSize)
+            routines = fetch_routines(args.page_size)
         except RuntimeError as exc:
             print(str(exc), file=sys.stderr)
             raise SystemExit(1) from exc
 
-        print_routines(routines)
+        print_routines(routines, include_notes=args.with_notes)
         return
 
     if args.command == "routine":
