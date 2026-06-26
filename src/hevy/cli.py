@@ -166,7 +166,9 @@ def print_workouts(
     for index, workout in enumerate(workouts, start=1):
         title = workout.get("title") or "(untitled)"
         description = workout.get("description") or ""
-        print(f"{title} {description}".rstrip())
+        print(f"{title}")
+        for description_line in description.strip().splitlines():
+            print(f"  ( {description_line}")
 
         if not include_exercises:
             continue
@@ -197,7 +199,7 @@ def print_workouts(
             if isinstance(exercise_title, str):
                 workout_exercise_titles.add(exercise_title)
 
-            # Add "S " prefix if exercise is part of a superset
+            # Add "| " prefix if exercise is part of a superset
             superset_id = exercise.get("superset_id")
             title_with_superset = f"| {exercise_title}" if superset_id is not None else exercise_title
 
@@ -224,7 +226,7 @@ def print_workouts(
         if check_routine and routine_exercise_titles:
             for routine_exercise_title in sorted(routine_exercise_titles):
                 if routine_exercise_title not in workout_exercise_titles:
-                    print(f"  ❌ - {routine_exercise_title}")
+                    print(f"\n  ❌ - {routine_exercise_title}")
         print(f"\n")
 
 
@@ -236,8 +238,7 @@ def print_routines(routines: list[dict], include_notes: bool = False) -> None:
     print(f"\nRoutines:\n")
     for index, routine in enumerate(routines, start=1):
         title = routine.get("title") or "(untitled)"
-        description = routine.get("description") or ""
-        print(f"{title} {description}")
+        print(f"{title}")
 
         exercises = routine.get("exercises")
         if not isinstance(exercises, list) or not exercises:
