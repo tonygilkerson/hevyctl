@@ -21,7 +21,7 @@ def parse_page_size(value: str) -> int:
 
 def format_weight_lbs(weight_kg: object) -> str:
     if not isinstance(weight_kg, (int, float)) or isinstance(weight_kg, bool):
-        return "-"
+        return ""
 
     weight_lbs = round(weight_kg * POUNDS_PER_KILOGRAM, 1)
     if weight_lbs.is_integer():
@@ -31,15 +31,40 @@ def format_weight_lbs(weight_kg: object) -> str:
 
 
 def format_set_weight_and_reps(exercise_set: dict) -> str:
-    weight_text = f"{format_weight_lbs(exercise_set.get('weight_kg')):>3} lbs"
 
-    reps = exercise_set.get("reps")
-    if isinstance(reps, int) and not isinstance(reps, bool):
-        reps_text = str(reps)
+    #
+    # Type
+    #
+    match exercise_set.get("type"):
+        case "normal":
+            set_text = str(exercise_set.get("index")+1)
+        case "failure":
+            set_text = "F"
+        case "warmup":
+            set_text = "W"
+        case _:
+            set_text = "?"
+    #
+    # Weight
+    #
+    weight_text  = ""
+    if exercise_set.get('weight_kg'):
+        weight_text = f"{format_weight_lbs(exercise_set.get('weight_kg')):>4} lbs"
+    
+    #
+    # Reps
+    #
+    reps_text = ""
+    if exercise_set.get("reps"):
+        reps_text = f"X {exercise_set.get("reps"):>2} reps"
+
+    #
+    # Return formatted string
+    #
+    if not weight_text and not reps_text:
+        return ""
     else:
-        reps_text = "-"
-
-    return f"{weight_text} X {reps_text} reps"
+        return f"{set_text} {weight_text} {reps_text}"
 
 
 def print_exercise_details(exercise: dict, include_notes: bool = False, include_sets: bool = False) -> None:
@@ -61,18 +86,11 @@ def print_exercise_details(exercise: dict, include_notes: bool = False, include_
         if not isinstance(exercise_set, dict):
             continue
 
-        set_type = exercise_set.get("type")
-        match set_type:
-            case "normal":
-                set_number += 1
-                set_label = str(set_number)
-            case "failure":
-                set_label = "F"
-            case "warmup":
-                set_label = "W"
-            case _:
-                set_label = set_type
-        print(f"      {set_label:<2} {format_set_weight_and_reps(exercise_set)}")
+    set_text = format_set_weight_and_reps(exercise_set)
+    if set_text:
+        print(f"      {format_set_weight_and_reps(exercise_set)}")
+    else:
+        print(f"      ...")
 
 
 def build_parser() -> argparse.ArgumentParser:
