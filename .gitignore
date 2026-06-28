@@ -2,3 +2,6 @@
 .venv
 .envrc.private
 dist/
+pycache/
+*.py[cod]
+*$py.class

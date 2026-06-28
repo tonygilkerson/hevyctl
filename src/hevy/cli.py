@@ -249,7 +249,12 @@ def print_routines(routines: list[dict], include_notes: bool = False) -> None:
                 continue
 
             exercise_title = exercise.get("title") or "(untitled exercise)"
-            print(f"\n    - {exercise_title}")
+
+            # Add "| " prefix if exercise is part of a superset
+            superset_id = exercise.get("superset_id")
+            title_with_superset = f"| {exercise_title}" if superset_id is not None else exercise_title
+
+            print(f"\n    - {title_with_superset}")
 
             if include_notes:
                 notes = exercise.get("notes")
