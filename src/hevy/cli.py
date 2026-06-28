@@ -7,6 +7,7 @@ from urllib import error, parse, request
 
 API_URL = "https://api.hevyapp.com/v1/workouts"
 ROUTINES_API_URL = "https://api.hevyapp.com/v1/routines"
+POUNDS_PER_KILOGRAM = 2.20462
 
 
 def parse_page_size(value: str) -> int:
@@ -16,6 +17,62 @@ def parse_page_size(value: str) -> int:
         return 7
 
     return page_size if page_size > 0 else 5
+
+
+def format_weight_lbs(weight_kg: object) -> str:
+    if not isinstance(weight_kg, (int, float)) or isinstance(weight_kg, bool):
+        return "-"
+
+    weight_lbs = round(weight_kg * POUNDS_PER_KILOGRAM, 1)
+    if weight_lbs.is_integer():
+        return str(int(weight_lbs))
+
+    return f"{weight_lbs:.1f}"
+
+
+def format_set_weight_and_reps(exercise_set: dict) -> str:
+    weight_text = f"{format_weight_lbs(exercise_set.get('weight_kg')):>3} lbs"
+
+    reps = exercise_set.get("reps")
+    if isinstance(reps, int) and not isinstance(reps, bool):
+        reps_text = str(reps)
+    else:
+        reps_text = "-"
+
+    return f"{weight_text} X {reps_text} reps"
+
+
+def print_exercise_details(exercise: dict, include_notes: bool = False, include_sets: bool = False) -> None:
+    if include_notes:
+        notes = exercise.get("notes")
+        if isinstance(notes, str) and notes.strip():
+            for note_line in notes.strip().splitlines():
+                print(f"      ( {note_line}")
+
+    if not include_sets:
+        return
+
+    sets = exercise.get("sets")
+    if not isinstance(sets, list) or not sets:
+        return
+
+    set_number: int = 0
+    for exercise_set in sets:
+        if not isinstance(exercise_set, dict):
+            continue
+
+        set_type = exercise_set.get("type")
+        match set_type:
+            case "normal":
+                set_number += 1
+                set_label = str(set_number)
+            case "failure":
+                set_label = "F"
+            case "warmup":
+                set_label = "W"
+            case _:
+                set_label = set_type
+        print(f"      {set_label:<2} {format_set_weight_and_reps(exercise_set)}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -40,6 +97,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="List workouts without printing exercises",
     )
     workout_ls_parser.add_argument("--with-notes", dest="with_notes", action="store_true", help="Include exercise notes")
+    workout_ls_parser.add_argument("--with-sets", dest="with_sets", action="store_true", help="Include exercise sets")
 
     routine_parser = subparsers.add_parser("routine", help="Routine commands")
     routine_subparsers = routine_parser.add_subparsers(dest="routine_command")
@@ -155,6 +213,7 @@ def print_workouts(
     routines: list[dict] | None = None,
     include_exercises: bool = True,
     include_notes: bool = False,
+    include_sets: bool = False,
 ) -> None:
     if not workouts:
         print("No workouts found.")
@@ -205,11 +264,7 @@ def print_workouts(
 
             if not check_routine or not routine_exercise_titles:
                 print(f"\n    - {title_with_superset}")
-                if include_notes:
-                    notes = exercise.get("notes")
-                    if isinstance(notes, str) and notes.strip():
-                        for note_line in notes.strip().splitlines():
-                            print(f"      ( {note_line}")
+                print_exercise_details(exercise, include_notes=include_notes, include_sets=include_sets)
                 continue
 
             if exercise_title in routine_exercise_titles:
@@ -217,11 +272,7 @@ def print_workouts(
             else:
                 print(f"\n  ➕ - {title_with_superset}")
 
-            if include_notes:
-                notes = exercise.get("notes")
-                if isinstance(notes, str) and notes.strip():
-                    for note_line in notes.strip().splitlines():
-                        print(f"      ( {note_line}")
+            print_exercise_details(exercise, include_notes=include_notes, include_sets=include_sets)
 
         if check_routine and routine_exercise_titles:
             for routine_exercise_title in sorted(routine_exercise_titles):
@@ -289,6 +340,7 @@ def main() -> None:
             routines=routines,
             include_exercises=not args.no_exercises,
             include_notes=args.with_notes,
+            include_sets=args.with_sets,
         )
         return
 

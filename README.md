@@ -61,6 +61,9 @@ uv run hevyctl workout ls --check-routine --page-size 5
 # Fetch workouts without exercises
 uv run hevyctl workout ls --no-exercises
 
+# Fetch workouts with sets
+uv run hevyctl workout ls --with-sets
+
 # Fetch routines
 uv run hevyctl routine ls --page-size 5
 
