@@ -63,8 +63,8 @@ def format_set_weight_and_reps(exercise_set: dict) -> str:
     #
     if not weight_text and not reps_text:
         return ""
-    else:
-        return f"{set_text} {weight_text} {reps_text}"
+
+    return f"{set_text} {weight_text} {reps_text}".rstrip()
 
 
 def print_exercise_details(exercise: dict, include_notes: bool = False, include_sets: bool = False) -> None:
@@ -81,16 +81,15 @@ def print_exercise_details(exercise: dict, include_notes: bool = False, include_
     if not isinstance(sets, list) or not sets:
         return
 
-    set_number: int = 0
     for exercise_set in sets:
         if not isinstance(exercise_set, dict):
             continue
 
-    set_text = format_set_weight_and_reps(exercise_set)
-    if set_text:
-        print(f"      {format_set_weight_and_reps(exercise_set)}")
-    else:
-        print(f"      ...")
+        set_text = format_set_weight_and_reps(exercise_set)
+        if set_text:
+            print(f"      {set_text}")
+        else:
+            print("      ...")
 
 
 def build_parser() -> argparse.ArgumentParser:
