@@ -110,6 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
     routine_ls_parser = routine_subparsers.add_parser("ls", help="List routines")
     routine_ls_parser.add_argument("--page-size", dest="page_size", type=parse_page_size, default=10, help="Number of routines to fetch")
     routine_ls_parser.add_argument("--with-notes", dest="with_notes", action="store_true", help="Include notes")
+    routine_ls_parser.add_argument("--name", dest="name_filter", type=str, default="", help="Only show routines whose name contains this string")
 
     return parser
 
@@ -359,6 +360,14 @@ def main() -> None:
         except RuntimeError as exc:
             print(str(exc), file=sys.stderr)
             raise SystemExit(1) from exc
+
+        if args.name_filter:
+            filter_text = args.name_filter.lower()
+            routines = [
+                routine
+                for routine in routines
+                if isinstance(routine.get("title"), str) and filter_text in routine.get("title", "").lower()
+            ]
 
         print_routines(routines, include_notes=args.with_notes)
         return
