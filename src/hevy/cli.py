@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import sys
+from typing import Optional
 from urllib import error, parse, request
 
 
@@ -31,36 +32,23 @@ def format_weight_lbs(weight_kg: object) -> str:
 
 
 def format_set_weight_and_reps(exercise_set: dict) -> str:
+    set_type = exercise_set.get("type")
+    if set_type == "normal":
+        set_index = exercise_set.get("index")
+        set_text = str(set_index + 1) if isinstance(set_index, int) else "?"
+    elif set_type == "failure":
+        set_text = "F"
+    elif set_type == "warmup":
+        set_text = "W"
+    else:
+        set_text = "?"
 
-    #
-    # Type
-    #
-    match exercise_set.get("type"):
-        case "normal":
-            set_text = str(exercise_set.get("index")+1)
-        case "failure":
-            set_text = "F"
-        case "warmup":
-            set_text = "W"
-        case _:
-            set_text = "?"
-    #
-    # Weight
-    #
-    weight_text  = ""
-    if exercise_set.get('weight_kg'):
-        weight_text = f"{format_weight_lbs(exercise_set.get('weight_kg')):>4} lbs"
-    
-    #
-    # Reps
-    #
-    reps_text = ""
-    if exercise_set.get("reps"):
-        reps_text = f"X {exercise_set.get("reps"):>2} reps"
+    weight = format_weight_lbs(exercise_set.get("weight_kg"))
+    weight_text = f"{weight:>4} lbs" if weight else ""
 
-    #
-    # Return formatted string
-    #
+    reps = exercise_set.get("reps")
+    reps_text = f"X {reps:>2} reps" if isinstance(reps, int) and not isinstance(reps, bool) else ""
+
     if not weight_text and not reps_text:
         return ""
 
@@ -164,7 +152,7 @@ def fetch_routines(page_size: int) -> list[dict]:
 
     all_routines: list[dict] = []
     page = 1
-    page_count: int | None = None
+    page_count: Optional[int] = None
 
     while True:
         query = parse.urlencode({"page": page, "pageSize": page_size})
@@ -227,7 +215,7 @@ def build_routine_lookup(routines: list[dict]) -> dict[str, dict]:
 def print_workouts(
     workouts: list[dict],
     check_routine: bool = False,
-    routines: list[dict] | None = None,
+    routines: Optional[list[dict]] = None,
     include_exercises: bool = True,
     include_notes: bool = False,
     include_sets: bool = False,
@@ -280,21 +268,21 @@ def print_workouts(
             title_with_superset = f"| {exercise_title}" if superset_id is not None else exercise_title
 
             if not check_routine or not routine_exercise_titles:
-                print(f"\n    - {title_with_superset}")
+                print(f"    - {title_with_superset}")
                 print_exercise_details(exercise, include_notes=include_notes, include_sets=include_sets)
                 continue
 
             if exercise_title in routine_exercise_titles:
-                print(f"\n  ✅ - {title_with_superset}")
+                print(f"  ✅ - {title_with_superset}")
             else:
-                print(f"\n  ➕ - {title_with_superset}")
+                print(f"  ➕ - {title_with_superset}")
 
             print_exercise_details(exercise, include_notes=include_notes, include_sets=include_sets)
 
         if check_routine and routine_exercise_titles:
             for routine_exercise_title in sorted(routine_exercise_titles):
                 if routine_exercise_title not in workout_exercise_titles:
-                    print(f"\n  ❌ - {routine_exercise_title}")
+                    print(f"  ❌ - {routine_exercise_title}")
         print(f"\n")
 
 
@@ -322,7 +310,7 @@ def print_routines(routines: list[dict], include_notes: bool = False) -> None:
             superset_id = exercise.get("superset_id")
             title_with_superset = f"| {exercise_title}" if superset_id is not None else exercise_title
 
-            print(f"\n    - {title_with_superset}")
+            print(f"    - {title_with_superset}")
 
             if include_notes:
                 notes = exercise.get("notes")
@@ -343,7 +331,7 @@ def main() -> None:
             print(str(exc), file=sys.stderr)
             raise SystemExit(1) from exc
 
-        routines: list[dict] | None = None
+        routines: Optional[list[dict]] = None
         if args.check_routine and not args.no_exercises:
             try:
                 routines = fetch_routines(args.page_size)
