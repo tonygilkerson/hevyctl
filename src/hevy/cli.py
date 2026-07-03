@@ -8,6 +8,7 @@ from urllib import error, parse, request
 
 API_URL = "https://api.hevyapp.com/v1/workouts"
 ROUTINES_API_URL = "https://api.hevyapp.com/v1/routines"
+ROUTINE_FOLDERS_API_URL = "https://api.hevyapp.com/v1/routine_folders"
 POUNDS_PER_KILOGRAM = 2.20462
 
 
@@ -112,6 +113,12 @@ def build_parser() -> argparse.ArgumentParser:
     routine_ls_parser.add_argument("--with-notes", dest="with_notes", action="store_true", help="Include notes")
     routine_ls_parser.add_argument("--name", dest="name_filter", type=str, default="", help="Only show routines whose name contains this string")
 
+    folder_parser = subparsers.add_parser("folder", help="Routine folder commands")
+    folder_subparsers = folder_parser.add_subparsers(dest="folder_command")
+
+    folder_ls_parser = folder_subparsers.add_parser("ls", help="List routine folders")
+    folder_ls_parser.add_argument("--page-size", dest="page_size", type=parse_page_size, default=10, help="Number of routine folders to fetch")
+
     return parser
 
 
@@ -198,6 +205,59 @@ def fetch_routines(page_size: int) -> list[dict]:
         page += 1
 
     return all_routines
+
+
+def fetch_routine_folders(page_size: int) -> list[dict]:
+    api_key = os.getenv("API_KEY")
+    if not api_key:
+        raise RuntimeError("API_KEY environment variable is not set")
+
+    all_routine_folders: list[dict] = []
+    page = 1
+    page_count: Optional[int] = None
+
+    while True:
+        query = parse.urlencode({"page": page, "pageSize": page_size})
+        req = request.Request(
+            f"{ROUTINE_FOLDERS_API_URL}?{query}",
+            headers={
+                "accept": "application/json",
+                "api-key": api_key,
+            },
+            method="GET",
+        )
+
+        try:
+            with request.urlopen(req) as response:
+                payload = json.load(response)
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Hevy API request failed: {exc.code} {exc.reason}: {detail}") from exc
+        except error.URLError as exc:
+            raise RuntimeError(f"Unable to reach Hevy API: {exc.reason}") from exc
+
+        routine_folders = payload.get("routine_folders")
+        if not isinstance(routine_folders, list):
+            raise RuntimeError("Hevy API response did not contain a routine_folders list")
+
+        response_page_count = payload.get("page_count")
+        if isinstance(response_page_count, int) and response_page_count > 0:
+            page_count = response_page_count
+
+        if not routine_folders:
+            break
+
+        all_routine_folders.extend(routine_folders)
+
+        if len(routine_folders) < page_size:
+            break
+
+        if page_count is not None and page >= page_count:
+            break
+
+        page += 1
+
+    return all_routine_folders
 
 
 def build_routine_lookup(routines: list[dict]) -> dict[str, dict]:
@@ -321,6 +381,22 @@ def print_routines(routines: list[dict], include_notes: bool = False) -> None:
         print(f"\n")
 
 
+def print_routine_folders(routine_folders: list[dict]) -> None:
+    if not routine_folders:
+        print("No routine folders found.")
+        return
+
+    print(f"\nRoutine Folders:\n")
+    for routine_folder in routine_folders:
+        if not isinstance(routine_folder, dict):
+            continue
+
+        title = routine_folder.get("title") or "(untitled)"
+        print(f"- {title}")
+
+    print(f"\n")
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
@@ -372,8 +448,22 @@ def main() -> None:
         print_routines(routines, include_notes=args.with_notes)
         return
 
+    if args.command == "folder" and args.folder_command == "ls":
+        try:
+            routine_folders = fetch_routine_folders(args.page_size)
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            raise SystemExit(1) from exc
+
+        print_routine_folders(routine_folders)
+        return
+
     if args.command == "routine":
         parser.parse_args(["routine", "--help"])
+        return
+
+    if args.command == "folder":
+        parser.parse_args(["folder", "--help"])
         return
 
     parser.print_help()

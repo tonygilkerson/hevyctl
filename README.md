@@ -70,4 +70,7 @@ uv run hevyctl routine ls --page-size 5
 # routine list with notes
 uv run hevyctl routine ls --with-notes
 uv run hevyctl routine ls --name=push
+
+# list routine folders
+uv run hevyctl folder ls
 ```
