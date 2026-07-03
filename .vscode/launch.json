@@ -11,7 +11,7 @@
       "env": {
         "PYTHONPATH": "src"
       },
-      "args": ["workout", "ls", "--pageSize", "5"],
+      "args": ["routine", "ls"],
       "console": "integratedTerminal"
     }
   ]

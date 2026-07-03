@@ -207,12 +207,12 @@ def fetch_routines(page_size: int) -> list[dict]:
     return all_routines
 
 
-def fetch_routine_folders(page_size: int) -> list[dict]:
+def fetch_folders(page_size: int) -> list[dict]:
     api_key = os.getenv("API_KEY")
     if not api_key:
         raise RuntimeError("API_KEY environment variable is not set")
 
-    all_routine_folders: list[dict] = []
+    folders: list[dict] = []
     page = 1
     page_count: Optional[int] = None
 
@@ -236,20 +236,20 @@ def fetch_routine_folders(page_size: int) -> list[dict]:
         except error.URLError as exc:
             raise RuntimeError(f"Unable to reach Hevy API: {exc.reason}") from exc
 
-        routine_folders = payload.get("routine_folders")
-        if not isinstance(routine_folders, list):
+        page_folders = payload.get("routine_folders")
+        if not isinstance(page_folders, list):
             raise RuntimeError("Hevy API response did not contain a routine_folders list")
 
         response_page_count = payload.get("page_count")
         if isinstance(response_page_count, int) and response_page_count > 0:
             page_count = response_page_count
 
-        if not routine_folders:
+        if not page_folders:
             break
 
-        all_routine_folders.extend(routine_folders)
+        folders.extend(page_folders)
 
-        if len(routine_folders) < page_size:
+        if len(page_folders) < page_size:
             break
 
         if page_count is not None and page >= page_count:
@@ -257,7 +257,21 @@ def fetch_routine_folders(page_size: int) -> list[dict]:
 
         page += 1
 
-    return all_routine_folders
+    return folders
+
+
+def build_folder_title_lookup(folders: list[dict]) -> dict[int, str]:
+    lookup: dict[int, str] = {}
+    for folder in folders:
+        if not isinstance(folder, dict):
+            continue
+
+        folder_id = folder.get("id")
+        folder_title = folder.get("title")
+        if isinstance(folder_id, int) and isinstance(folder_title, str) and folder_title:
+            lookup[folder_id] = folder_title
+
+    return lookup
 
 
 def build_routine_lookup(routines: list[dict]) -> dict[str, dict]:
@@ -347,15 +361,29 @@ def print_workouts(
         print(f"\n")
 
 
-def print_routines(routines: list[dict], include_notes: bool = False) -> None:
+def print_routines(
+    routines: list[dict],
+    include_notes: bool = False,
+    folder_title_lookup: Optional[dict[int, str]] = None,
+) -> None:
     if not routines:
         print("No routines found.")
         return
 
+    folder_title_lookup = folder_title_lookup or {}
+
     print(f"\nRoutines:\n")
     for index, routine in enumerate(routines, start=1):
         title = routine.get("title") or "(untitled)"
-        print(f"{title}")
+        folder_title = ""
+        folder_id = routine.get("folder_id")
+        if isinstance(folder_id, int):
+            folder_title = folder_title_lookup.get(folder_id, "")
+
+        if folder_title:
+            print(f"🗂️ {folder_title}\n  {title}")
+        else:
+            print(f"{title}")
 
         exercises = routine.get("exercises")
         if not isinstance(exercises, list) or not exercises:
@@ -381,17 +409,17 @@ def print_routines(routines: list[dict], include_notes: bool = False) -> None:
         print(f"\n")
 
 
-def print_routine_folders(routine_folders: list[dict]) -> None:
-    if not routine_folders:
+def print_folders(folders: list[dict]) -> None:
+    if not folders:
         print("No routine folders found.")
         return
 
     print(f"\nRoutine Folders:\n")
-    for routine_folder in routine_folders:
-        if not isinstance(routine_folder, dict):
+    for folder in folders:
+        if not isinstance(folder, dict):
             continue
 
-        title = routine_folder.get("title") or "(untitled)"
+        title = folder.get("title") or "(untitled)"
         print(f"- {title}")
 
     print(f"\n")
@@ -433,9 +461,12 @@ def main() -> None:
     if args.command == "routine" and args.routine_command == "ls":
         try:
             routines = fetch_routines(args.page_size)
+            folders = fetch_folders(args.page_size)
         except RuntimeError as exc:
             print(str(exc), file=sys.stderr)
             raise SystemExit(1) from exc
+
+        folder_title_lookup = build_folder_title_lookup(folders)
 
         if args.name_filter:
             filter_text = args.name_filter.lower()
@@ -445,17 +476,17 @@ def main() -> None:
                 if isinstance(routine.get("title"), str) and filter_text in routine.get("title", "").lower()
             ]
 
-        print_routines(routines, include_notes=args.with_notes)
+        print_routines(routines, include_notes=args.with_notes, folder_title_lookup=folder_title_lookup)
         return
 
     if args.command == "folder" and args.folder_command == "ls":
         try:
-            routine_folders = fetch_routine_folders(args.page_size)
+            folders = fetch_folders(args.page_size)
         except RuntimeError as exc:
             print(str(exc), file=sys.stderr)
             raise SystemExit(1) from exc
 
-        print_routine_folders(routine_folders)
+        print_folders(folders)
         return
 
     if args.command == "routine":
