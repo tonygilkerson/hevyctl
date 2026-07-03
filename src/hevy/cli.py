@@ -112,6 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
     routine_ls_parser.add_argument("--page-size", dest="page_size", type=parse_page_size, default=10, help="Number of routines to fetch")
     routine_ls_parser.add_argument("--with-notes", dest="with_notes", action="store_true", help="Include notes")
     routine_ls_parser.add_argument("--name", dest="name_filter", type=str, default="", help="Only show routines whose name contains this string")
+    routine_ls_parser.add_argument("--folder", dest="folder_filter", type=str, default="", help="Only show routines whose folder title contains this string")
 
     folder_parser = subparsers.add_parser("folder", help="Routine folder commands")
     folder_subparsers = folder_parser.add_subparsers(dest="folder_command")
@@ -365,12 +366,14 @@ def print_routines(
     routines: list[dict],
     include_notes: bool = False,
     folder_title_lookup: Optional[dict[int, str]] = None,
+    group_by_folder: bool = False,
 ) -> None:
     if not routines:
         print("No routines found.")
         return
 
     folder_title_lookup = folder_title_lookup or {}
+    previous_folder_title: Optional[str] = None
 
     print(f"\nRoutines:\n")
     for index, routine in enumerate(routines, start=1):
@@ -380,7 +383,12 @@ def print_routines(
         if isinstance(folder_id, int):
             folder_title = folder_title_lookup.get(folder_id, "")
 
-        if folder_title:
+        if group_by_folder and folder_title:
+            if folder_title != previous_folder_title:
+                print(f"🗂️ {folder_title}")
+                previous_folder_title = folder_title
+            print(f"  {title}")
+        elif folder_title:
             print(f"🗂️ {folder_title}\n  {title}")
         else:
             print(f"{title}")
@@ -405,7 +413,7 @@ def print_routines(
                 notes = exercise.get("notes")
                 if isinstance(notes, str) and notes.strip():
                     for note_line in notes.strip().splitlines():
-                        print(f"      ( {note_line}")
+                        print(f"        ( {note_line}")
         print(f"\n")
 
 
@@ -476,7 +484,20 @@ def main() -> None:
                 if isinstance(routine.get("title"), str) and filter_text in routine.get("title", "").lower()
             ]
 
-        print_routines(routines, include_notes=args.with_notes, folder_title_lookup=folder_title_lookup)
+        if args.folder_filter:
+            folder_filter_text = args.folder_filter.lower()
+            routines = [
+                routine
+                for routine in routines
+                if folder_filter_text in folder_title_lookup.get(routine.get("folder_id"), "").lower()
+            ]
+
+        print_routines(
+            routines,
+            include_notes=args.with_notes,
+            folder_title_lookup=folder_title_lookup,
+            group_by_folder=bool(args.folder_filter),
+        )
         return
 
     if args.command == "folder" and args.folder_command == "ls":
