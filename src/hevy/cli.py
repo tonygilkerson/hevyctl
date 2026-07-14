@@ -56,12 +56,17 @@ def format_set_weight_and_reps(exercise_set: dict) -> str:
     return f"{set_text} {weight_text} {reps_text}".rstrip()
 
 
-def print_exercise_details(exercise: dict, include_notes: bool = False, include_sets: bool = False) -> None:
+def print_exercise_details(
+    exercise: dict,
+    include_notes: bool = False,
+    include_sets: bool = False,
+    indent: str = "      ",
+) -> None:
     if include_notes:
         notes = exercise.get("notes")
         if isinstance(notes, str) and notes.strip():
             for note_line in notes.strip().splitlines():
-                print(f"      ( {note_line}")
+                print(f"{indent}( {note_line}")
 
     if not include_sets:
         return
@@ -76,9 +81,9 @@ def print_exercise_details(exercise: dict, include_notes: bool = False, include_
 
         set_text = format_set_weight_and_reps(exercise_set)
         if set_text:
-            print(f"      {set_text}")
+            print(f"{indent}{set_text}")
         else:
-            print("      ...")
+            print(f"{indent}...")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -326,7 +331,7 @@ def print_workouts(
     routine_lookup = build_routine_lookup(routines or []) if check_routine else {}
     exercise_filter_text = exercise_filter.lower()
 
-    print(f"\nWorkouts:\n")
+    print(f"\n🏋️ Workouts:\n")
     for index, workout in enumerate(workouts, start=1):
         matching_exercises = filter_exercises(workout.get("exercises"), exercise_filter_text)
 
@@ -371,8 +376,13 @@ def print_workouts(
             title_with_superset = f"| {exercise_title}" if superset_id is not None else exercise_title
 
             if not check_routine or not routine_exercise_titles:
-                print(f"    - {title_with_superset}")
-                print_exercise_details(exercise, include_notes=include_notes, include_sets=include_sets)
+                print(f"  - {title_with_superset}")
+                print_exercise_details(
+                    exercise,
+                    include_notes=include_notes,
+                    include_sets=include_sets,
+                    indent="    ",
+                )
                 continue
 
             if exercise_title in routine_exercise_titles:
@@ -380,7 +390,12 @@ def print_workouts(
             else:
                 print(f"  ➕ - {title_with_superset}")
 
-            print_exercise_details(exercise, include_notes=include_notes, include_sets=include_sets)
+            print_exercise_details(
+                exercise,
+                include_notes=include_notes,
+                include_sets=include_sets,
+                indent="    ",
+            )
 
         if check_routine and routine_exercise_titles:
             for routine_exercise_title in sorted(routine_exercise_titles):
@@ -417,16 +432,20 @@ def print_routines(
         folder_id = routine.get("folder_id")
         if isinstance(folder_id, int):
             folder_title = folder_title_lookup.get(folder_id, "")
+        folder_label = folder_title or "My Routines"
 
         if group_by_folder and folder_title:
             if folder_title != previous_folder_title:
                 print(f"🗂️ {folder_title}")
                 previous_folder_title = folder_title
-            print(f"  {title}")
-        elif folder_title:
-            print(f"🗂️ {folder_title}\n  {title}")
-        else:
             print(f"{title}")
+        elif group_by_folder and not folder_title:
+            if folder_label != previous_folder_title:
+                print(f"🗂️ {folder_label}")
+                previous_folder_title = folder_label
+            print(f"{title}")
+        else:
+            print(f"🗂️ {folder_label}\n{title}")
 
         if not matching_exercises:
             continue
@@ -438,9 +457,9 @@ def print_routines(
             superset_id = exercise.get("superset_id")
             title_with_superset = f"| {exercise_title}" if superset_id is not None else exercise_title
 
-            print(f"    - {title_with_superset}")
+            print(f"  - {title_with_superset}")
 
-            print_exercise_details(exercise, include_notes=include_notes, include_sets=include_sets)
+            print_exercise_details(exercise, include_notes=include_notes, include_sets=include_sets, indent="    ")
         print(f"\n")
 
 

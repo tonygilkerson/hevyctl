@@ -51,6 +51,8 @@ hevyctl --version
 
 ## Usage Examples
 
+Workout descriptions are omitted by default; add `--with-desc` when you want them printed.
+
 ```sh
 # Fetch workouts
 uv run hevyctl workout ls --page-size 5
@@ -60,6 +62,9 @@ uv run hevyctl workout ls --check-routine --page-size 5
 
 # Fetch workouts without exercises
 uv run hevyctl workout ls --no-exercises
+
+# Fetch workouts with descriptions
+uv run hevyctl workout ls --with-desc
 
 # Fetch workouts with sets
 uv run hevyctl workout ls --with-sets
