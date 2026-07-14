@@ -111,6 +111,7 @@ def build_parser() -> argparse.ArgumentParser:
     routine_ls_parser = routine_subparsers.add_parser("ls", help="List routines")
     routine_ls_parser.add_argument("--page-size", dest="page_size", type=parse_page_size, default=10, help="Number of routines to fetch")
     routine_ls_parser.add_argument("--with-notes", dest="with_notes", action="store_true", help="Include notes")
+    routine_ls_parser.add_argument("--with-sets", dest="with_sets", action="store_true", help="Include exercise sets")
     routine_ls_parser.add_argument("--name", dest="name_filter", type=str, default="", help="Only show routines whose name contains this string")
     routine_ls_parser.add_argument("--folder", dest="folder_filter", type=str, default="", help="Only show routines whose folder title contains this string")
 
@@ -365,6 +366,7 @@ def print_workouts(
 def print_routines(
     routines: list[dict],
     include_notes: bool = False,
+    include_sets: bool = False,
     folder_title_lookup: Optional[dict[int, str]] = None,
     group_by_folder: bool = False,
 ) -> None:
@@ -409,11 +411,7 @@ def print_routines(
 
             print(f"    - {title_with_superset}")
 
-            if include_notes:
-                notes = exercise.get("notes")
-                if isinstance(notes, str) and notes.strip():
-                    for note_line in notes.strip().splitlines():
-                        print(f"        ( {note_line}")
+            print_exercise_details(exercise, include_notes=include_notes, include_sets=include_sets)
         print(f"\n")
 
 
@@ -495,6 +493,7 @@ def main() -> None:
         print_routines(
             routines,
             include_notes=args.with_notes,
+            include_sets=args.with_sets,
             folder_title_lookup=folder_title_lookup,
             group_by_folder=bool(args.folder_filter),
         )
