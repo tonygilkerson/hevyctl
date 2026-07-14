@@ -108,6 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="List workouts without printing exercises",
     )
     workout_ls_parser.add_argument("--with-notes", dest="with_notes", action="store_true", help="Include exercise notes")
+    workout_ls_parser.add_argument("--with-desc", dest="with_desc", action="store_true", help="Include workout description")
     workout_ls_parser.add_argument("--with-sets", dest="with_sets", action="store_true", help="Include exercise sets")
     workout_ls_parser.add_argument("--exercise", dest="exercise_filter", type=str, default="", help="Only show exercises whose name contains this string")
 
@@ -320,6 +321,7 @@ def print_workouts(
     check_routine: bool = False,
     routines: Optional[list[dict]] = None,
     include_exercises: bool = True,
+    include_description: bool = False,
     include_notes: bool = False,
     include_sets: bool = False,
     exercise_filter: str = "",
@@ -341,8 +343,9 @@ def print_workouts(
         title = workout.get("title") or "(untitled)"
         description = workout.get("description") or ""
         print(f"{title}")
-        for description_line in description.strip().splitlines():
-            print(f"  ( {description_line}")
+        if include_description:
+            for description_line in description.strip().splitlines():
+                print(f"  ( {description_line}")
 
         if not include_exercises:
             print(f"\n")
@@ -503,6 +506,7 @@ def main() -> None:
             check_routine=args.check_routine,
             routines=routines,
             include_exercises=not args.no_exercises,
+            include_description=args.with_desc,
             include_notes=args.with_notes,
             include_sets=args.with_sets,
             exercise_filter=args.exercise_filter,
