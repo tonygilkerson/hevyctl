@@ -104,6 +104,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     workout_ls_parser.add_argument("--with-notes", dest="with_notes", action="store_true", help="Include exercise notes")
     workout_ls_parser.add_argument("--with-sets", dest="with_sets", action="store_true", help="Include exercise sets")
+    workout_ls_parser.add_argument("--exercise", dest="exercise_filter", type=str, default="", help="Only show exercises whose name contains this string")
 
     routine_parser = subparsers.add_parser("routine", help="Routine commands")
     routine_subparsers = routine_parser.add_subparsers(dest="routine_command")
@@ -112,6 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
     routine_ls_parser.add_argument("--page-size", dest="page_size", type=parse_page_size, default=10, help="Number of routines to fetch")
     routine_ls_parser.add_argument("--with-notes", dest="with_notes", action="store_true", help="Include notes")
     routine_ls_parser.add_argument("--with-sets", dest="with_sets", action="store_true", help="Include exercise sets")
+    routine_ls_parser.add_argument("--exercise", dest="exercise_filter", type=str, default="", help="Only show exercises whose name contains this string")
     routine_ls_parser.add_argument("--name", dest="name_filter", type=str, default="", help="Only show routines whose name contains this string")
     routine_ls_parser.add_argument("--folder", dest="folder_filter", type=str, default="", help="Only show routines whose folder title contains this string")
 
@@ -289,6 +291,25 @@ def build_routine_lookup(routines: list[dict]) -> dict[str, dict]:
     return lookup
 
 
+def title_matches_exercise_filter(title: object, exercise_filter_text: str) -> bool:
+    return isinstance(title, str) and (not exercise_filter_text or exercise_filter_text in title.lower())
+
+
+def filter_exercises(exercises: object, exercise_filter_text: str) -> list[dict]:
+    if not isinstance(exercises, list):
+        return []
+
+    matching_exercises: list[dict] = []
+    for exercise in exercises:
+        if not isinstance(exercise, dict):
+            continue
+
+        if title_matches_exercise_filter(exercise.get("title"), exercise_filter_text):
+            matching_exercises.append(exercise)
+
+    return matching_exercises
+
+
 def print_workouts(
     workouts: list[dict],
     check_routine: bool = False,
@@ -296,15 +317,22 @@ def print_workouts(
     include_exercises: bool = True,
     include_notes: bool = False,
     include_sets: bool = False,
+    exercise_filter: str = "",
 ) -> None:
     if not workouts:
         print("No workouts found.")
         return
 
     routine_lookup = build_routine_lookup(routines or []) if check_routine else {}
+    exercise_filter_text = exercise_filter.lower()
 
     print(f"\nWorkouts:\n")
     for index, workout in enumerate(workouts, start=1):
+        matching_exercises = filter_exercises(workout.get("exercises"), exercise_filter_text)
+
+        if exercise_filter_text and not matching_exercises:
+            continue
+
         title = workout.get("title") or "(untitled)"
         description = workout.get("description") or ""
         print(f"{title}")
@@ -312,10 +340,11 @@ def print_workouts(
             print(f"  ( {description_line}")
 
         if not include_exercises:
+            print(f"\n")
             continue
 
-        exercises = workout.get("exercises")
-        if not isinstance(exercises, list) or not exercises:
+        if not matching_exercises:
+            print(f"\n")
             continue
 
         routine_exercise_titles: set[str] = set()
@@ -328,14 +357,11 @@ def print_workouts(
                         if not isinstance(routine_exercise, dict):
                             continue
                         routine_exercise_title = routine_exercise.get("title")
-                        if isinstance(routine_exercise_title, str) and routine_exercise_title:
+                        if title_matches_exercise_filter(routine_exercise_title, exercise_filter_text):
                             routine_exercise_titles.add(routine_exercise_title)
 
         workout_exercise_titles: set[str] = set()
-        for exercise in exercises:
-            if not isinstance(exercise, dict):
-                continue
-
+        for exercise in matching_exercises:
             exercise_title = exercise.get("title") or "(untitled exercise)"
             if isinstance(exercise_title, str):
                 workout_exercise_titles.add(exercise_title)
@@ -367,6 +393,7 @@ def print_routines(
     routines: list[dict],
     include_notes: bool = False,
     include_sets: bool = False,
+    exercise_filter: str = "",
     folder_title_lookup: Optional[dict[int, str]] = None,
     group_by_folder: bool = False,
 ) -> None:
@@ -376,9 +403,15 @@ def print_routines(
 
     folder_title_lookup = folder_title_lookup or {}
     previous_folder_title: Optional[str] = None
+    exercise_filter_text = exercise_filter.lower()
 
     print(f"\nRoutines:\n")
     for index, routine in enumerate(routines, start=1):
+        matching_exercises = filter_exercises(routine.get("exercises"), exercise_filter_text)
+
+        if exercise_filter_text and not matching_exercises:
+            continue
+
         title = routine.get("title") or "(untitled)"
         folder_title = ""
         folder_id = routine.get("folder_id")
@@ -395,14 +428,10 @@ def print_routines(
         else:
             print(f"{title}")
 
-        exercises = routine.get("exercises")
-        if not isinstance(exercises, list) or not exercises:
+        if not matching_exercises:
             continue
 
-        for exercise in exercises:
-            if not isinstance(exercise, dict):
-                continue
-
+        for exercise in matching_exercises:
             exercise_title = exercise.get("title") or "(untitled exercise)"
 
             # Add "| " prefix if exercise is part of a superset
@@ -457,6 +486,7 @@ def main() -> None:
             include_exercises=not args.no_exercises,
             include_notes=args.with_notes,
             include_sets=args.with_sets,
+            exercise_filter=args.exercise_filter,
         )
         return
 
@@ -494,6 +524,7 @@ def main() -> None:
             routines,
             include_notes=args.with_notes,
             include_sets=args.with_sets,
+            exercise_filter=args.exercise_filter,
             folder_title_lookup=folder_title_lookup,
             group_by_folder=bool(args.folder_filter),
         )

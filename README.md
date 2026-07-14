@@ -73,4 +73,7 @@ uv run hevyctl routine ls --name=push
 
 # list routine folders
 uv run hevyctl folder ls
+
+# Compare the sets of the same exercise on different routines
+uv run hevyctl routine ls --folder=current --name=LOWER --exercise="hip thrust" --with-sets
 ```
